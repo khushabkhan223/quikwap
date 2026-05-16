@@ -65,6 +65,50 @@ For other industries, extract whatever key business information is present as a 
   }
 }
 
+export async function updateBusinessInfo(
+  existingData: Record<string, unknown>,
+  newMessage: string,
+  industry: string,
+): Promise<Record<string, unknown>> {
+  const systemPrompt = `You are a data management assistant for an Indian SMB automation tool.
+A ${industry} business owner is updating their business information.
+
+Here is their CURRENT business data:
+${JSON.stringify(existingData)}
+
+The owner has sent this new message (in English, Hindi, or Hinglish):
+${newMessage}
+
+Based on this message, update the business data by:
+- Adding new items if they mention new properties/services/courses
+- Removing items if they say remove/delete/hatao any specific item
+- Updating items if they correct existing information
+- Keeping all existing items that are not mentioned in the new message
+
+CRITICAL: Return ONLY the complete updated JSON object.
+No markdown. No code blocks. No backticks. No explanation.
+The first character must be { and the last must be }.
+Return the COMPLETE updated data, not just the changes.`;
+
+  const model = genAI.getGenerativeModel({
+    model: MODEL_ID,
+    systemInstruction: systemPrompt,
+  });
+
+  const result = await model.generateContent(newMessage);
+  const text = result.response.text();
+
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    logger.error(
+      { geminiResponse: text, industry },
+      "updateBusinessInfo: JSON parse failed",
+    );
+    return existingData;
+  }
+}
+
 export async function generateCustomerReply(
   customerMessage: string,
   businessKnowledge: Record<string, unknown>,

@@ -1,5 +1,9 @@
 import { Router, type Request, type Response } from "express";
-import { parseBusinessInfo, generateCustomerReply } from "../lib/gemini.js";
+import {
+  parseBusinessInfo,
+  updateBusinessInfo,
+  generateCustomerReply,
+} from "../lib/gemini.js";
 import {
   getBusinessKnowledge,
   saveBusinessKnowledge,
@@ -44,15 +48,24 @@ onboardingRouter.post(
       const isBusinessInfo =
         message.trim().length > 20 && !message.trim().endsWith("?");
 
+      const existingKnowledge = await getBusinessKnowledge(businessId);
       let structuredData: Record<string, unknown> | null = null;
 
       if (isBusinessInfo) {
-        structuredData = await parseBusinessInfo(message, industry);
+        if (existingKnowledge) {
+          structuredData = await updateBusinessInfo(
+            existingKnowledge.structuredData,
+            message,
+            industry,
+          );
+        } else {
+          structuredData = await parseBusinessInfo(message, industry);
+        }
         await saveBusinessKnowledge(businessId, message, structuredData);
       }
 
-      const existingKnowledge = await getBusinessKnowledge(businessId);
-      const knowledge = existingKnowledge?.structuredData ?? {};
+      const knowledge =
+        structuredData ?? existingKnowledge?.structuredData ?? {};
 
       const reply = await generateCustomerReply(
         message,

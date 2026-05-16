@@ -49,12 +49,17 @@ export async function saveBusinessKnowledge(
   rawText: string,
   structuredData: Record<string, unknown>,
 ): Promise<BusinessKnowledge> {
+  const existing = await getBusinessKnowledge(businessId);
+  const appendedText = existing?.rawOnboardingText
+    ? `${existing.rawOnboardingText}\n---\n${rawText}`
+    : rawText;
+
   const { data, error } = await supabaseAdmin
     .from("business_knowledge")
     .upsert(
       {
         business_id: businessId,
-        raw_onboarding_text: rawText,
+        raw_onboarding_text: appendedText,
         structured_data: structuredData,
         is_confirmed: false,
       },
