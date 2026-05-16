@@ -13,6 +13,9 @@ importers:
 
   apps/api:
     dependencies:
+      "@google/generative-ai":
+        specifier: ^0.21.0
+        version: 0.21.0
       "@supabase/supabase-js":
         specifier: ^2.45.0
         version: 2.105.4
@@ -677,6 +680,13 @@ packages:
     engines: { node: ">=18" }
     cpu: [x64]
     os: [win32]
+
+  "@google/generative-ai@0.21.0":
+    resolution:
+      {
+        integrity: sha512-7XhUbtnlkSEZK15kN3t+tzIMxsbKm/dSkKBFalj+20NvPKe1kBY7mR2P7vuijEn+f06z5+A8bVGKO0v39cr6Wg==,
+      }
+    engines: { node: ">=18.0.0" }
 
   "@jest/schemas@29.6.3":
     resolution:
@@ -3093,6 +3103,8 @@ snapshots:
 
   "@esbuild/win32-x64@0.28.0":
     optional: true
+
+  "@google/generative-ai@0.21.0": {}
 
   "@jest/schemas@29.6.3":
     dependencies:

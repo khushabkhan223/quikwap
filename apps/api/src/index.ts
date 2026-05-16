@@ -2,11 +2,13 @@ import "dotenv/config.js";
 import express, { type Express } from "express";
 import { logger } from "./lib/logger";
 import { supabaseClient } from "./db/client.js";
+import { onboardingRouter } from "./routes/onboarding.js";
 
 const app: Express = express();
 const PORT = 3001;
 
 app.use(express.json());
+app.use("/api", onboardingRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
