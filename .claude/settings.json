@@ -1,0 +1,38 @@
+{
+    "permissions": {
+        "allow": [
+            "Bash(pnpm:*)",
+            "Bash(npx:*)",
+            "Bash(git status)",
+            "Bash(git diff:*)",
+            "Bash(git log:*)",
+            "Bash(git add:*)",
+            "Bash(git commit:*)",
+            "Bash(git checkout -b:*)",
+            "Bash(git branch:*)",
+            "Bash(git push)",
+            "Bash(git push -u origin:*)",
+            "Bash(gh pr create:*)",
+            "Bash(gh issue:*)"
+        ],
+        "ask": [
+            "Bash(git push --force*)",
+            "Bash(git reset --hard*)",
+            "Bash(rm:*)",
+            "Bash(npx supabase db reset*)"
+        ]
+    },
+    "hooks": {
+        "PostToolUse": [
+            {
+                "matcher": "Write|Edit|MultiEdit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "npx prettier --write \"$CLAUDE_TOOL_INPUT_FILE_PATH\" 2>nul || exit 0"
+                    }
+                ]
+            }
+        ]
+    }
+}
