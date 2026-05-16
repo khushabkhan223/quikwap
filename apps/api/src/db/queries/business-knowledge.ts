@@ -1,4 +1,4 @@
-import { supabaseClient } from "../client.js";
+import { supabaseAdmin } from "../client.js";
 import type {
   BusinessKnowledge,
   OnboardingMessage,
@@ -29,7 +29,7 @@ function toOnboardingMessage(row: Record<string, unknown>): OnboardingMessage {
 export async function getBusinessKnowledge(
   businessId: string,
 ): Promise<BusinessKnowledge | null> {
-  const { data, error } = await supabaseClient
+  const { data, error } = await supabaseAdmin
     .from("business_knowledge")
     .select("*")
     .eq("business_id", businessId)
@@ -49,7 +49,7 @@ export async function saveBusinessKnowledge(
   rawText: string,
   structuredData: Record<string, unknown>,
 ): Promise<BusinessKnowledge> {
-  const { data, error } = await supabaseClient
+  const { data, error } = await supabaseAdmin
     .from("business_knowledge")
     .upsert(
       {
@@ -70,7 +70,7 @@ export async function saveBusinessKnowledge(
 export async function confirmBusinessKnowledge(
   businessId: string,
 ): Promise<BusinessKnowledge> {
-  const { data, error } = await supabaseClient
+  const { data, error } = await supabaseAdmin
     .from("business_knowledge")
     .update({ is_confirmed: true })
     .eq("business_id", businessId)
@@ -86,7 +86,7 @@ export async function saveOnboardingMessage(
   role: "user" | "assistant",
   content: string,
 ): Promise<void> {
-  const { error } = await supabaseClient
+  const { error } = await supabaseAdmin
     .from("onboarding_messages")
     .insert({ business_id: businessId, role, content });
 
@@ -96,7 +96,7 @@ export async function saveOnboardingMessage(
 export async function getOnboardingMessages(
   businessId: string,
 ): Promise<OnboardingMessage[]> {
-  const { data, error } = await supabaseClient
+  const { data, error } = await supabaseAdmin
     .from("onboarding_messages")
     .select("*")
     .eq("business_id", businessId)
