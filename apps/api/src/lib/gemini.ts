@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { logger } from "./logger.js";
 
 const apiKey = process.env["GEMINI_API_KEY"];
 if (!apiKey) {
@@ -13,17 +14,37 @@ export async function parseBusinessInfo(
   industry: string,
 ): Promise<Record<string, unknown>> {
   const systemPrompt = `You are a data extraction assistant for an Indian SMB automation tool.
-The user is a ${industry} business owner who has typed their business information
-in free-form text (possibly broken English, Hindi, or Hinglish).
+The user is a ${industry} business owner who has typed their business information in free-form text (possibly broken English, Hindi, or Hinglish).
 Extract the key information and return it as a clean JSON object.
-For real_estate industry, extract: properties (array of {location, type, price, description}),
-site_visit_availability, negotiable (boolean), additional_info.
-For coaching industry, extract: courses (array of {name, duration, fee, batch_timing}),
-admission_process, demo_available (boolean), additional_info.
-For clinic industry, extract: services (array of {name, fee}), doctor_name,
-availability, appointment_process, additional_info.
-For other industries, extract whatever key business information is present.
-Return ONLY valid JSON, no markdown, no explanation.`;
+
+CRITICAL: Return ONLY the raw JSON object. No markdown. No code blocks. No backticks. No explanation. No preamble. The very first character of your response must be { and the very last character must be }.
+
+For real_estate industry, extract:
+{
+  "properties": [{ "location": string, "type": string, "price": number, "description": string }],
+  "site_visit_availability": string,
+  "negotiable": boolean,
+  "additional_info": string
+}
+
+For coaching industry, extract:
+{
+  "courses": [{ "name": string, "duration": string, "fee": number, "batch_timing": string }],
+  "admission_process": string,
+  "demo_available": boolean,
+  "additional_info": string
+}
+
+For clinic industry, extract:
+{
+  "services": [{ "name": string, "fee": number }],
+  "doctor_name": string,
+  "availability": string,
+  "appointment_process": string,
+  "additional_info": string
+}
+
+For other industries, extract whatever key business information is present as a JSON object.`;
 
   const model = genAI.getGenerativeModel({
     model: MODEL_ID,
@@ -36,6 +57,10 @@ Return ONLY valid JSON, no markdown, no explanation.`;
   try {
     return JSON.parse(text) as Record<string, unknown>;
   } catch {
+    logger.error(
+      { geminiResponse: text, industry },
+      "parseBusinessInfo: JSON parse failed",
+    );
     return { raw: rawText };
   }
 }
