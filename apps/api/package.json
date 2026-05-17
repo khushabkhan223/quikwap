@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
+    "@quikwap/bsp-adapter": "workspace:*",
     "@supabase/supabase-js": "^2.45.0",
     "express": "^4.19.0",
     "pino": "^9.2.0"
