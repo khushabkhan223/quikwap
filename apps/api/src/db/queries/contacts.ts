@@ -52,6 +52,32 @@ export async function findOrCreateContact(
   return toContact(created as Record<string, unknown>);
 }
 
+export async function addTagToContact(
+  businessId: string,
+  contactId: string,
+  tag: string,
+): Promise<void> {
+  const { data, error: selectError } = await supabaseAdmin
+    .from("contacts")
+    .select("tags")
+    .eq("id", contactId)
+    .eq("business_id", businessId)
+    .single();
+
+  if (selectError) throw selectError;
+
+  const existing = (data as { tags: string[] }).tags ?? [];
+  if (existing.includes(tag)) return;
+
+  const { error: updateError } = await supabaseAdmin
+    .from("contacts")
+    .update({ tags: [...existing, tag] })
+    .eq("id", contactId)
+    .eq("business_id", businessId);
+
+  if (updateError) throw updateError;
+}
+
 export async function updateContactLastMessage(
   contactId: string,
 ): Promise<void> {

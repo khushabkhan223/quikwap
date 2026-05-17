@@ -109,6 +109,70 @@ Return the COMPLETE updated data, not just the changes.`;
   }
 }
 
+export async function detectIntentAndSummary(
+  customerMessage: string,
+  conversationHistory: Array<{ role: "user" | "assistant"; content: string }>,
+  businessKnowledge: Record<string, unknown>,
+): Promise<{
+  intent:
+    | "site_visit_requested"
+    | "general_enquiry"
+    | "not_interested"
+    | "other";
+  summary: string;
+}> {
+  const systemPrompt = `You are an intent detection assistant for a real estate WhatsApp bot.
+
+Analyze the conversation and the latest customer message.
+
+Detect the intent and return ONLY a JSON object with two fields:
+- intent: one of these exact values:
+  'site_visit_requested' — customer has proposed or agreed to a specific time for a site visit
+  'not_interested' — customer has said they are not interested or want to stop
+  'general_enquiry' — customer is asking questions but hasn't committed to anything
+  'other' — anything else
+- summary: a single sentence summary of what the customer wants.
+  Example: 'Rahul is interested in the 2BHK in Whitefield and wants a site visit on Saturday afternoon.'
+  Keep it under 20 words. Write it in English regardless of what language the customer used.
+
+CRITICAL: Return ONLY raw JSON. No markdown. No backticks. First character must be { and last must be }.`;
+
+  const model = genAI.getGenerativeModel({
+    model: MODEL_ID,
+    systemInstruction: systemPrompt,
+  });
+
+  const history = conversationHistory.map((msg) => ({
+    role: msg.role === "assistant" ? ("model" as const) : ("user" as const),
+    parts: [{ text: msg.content }],
+  }));
+
+  const contextMessage = `Business knowledge: ${JSON.stringify(businessKnowledge)}\n\nLatest customer message: ${customerMessage}`;
+
+  const chat = model.startChat({ history });
+  const result = await chat.sendMessage(contextMessage);
+  const text = result.response.text();
+
+  const parsed = JSON.parse(text) as Record<string, unknown>;
+
+  const validIntents = [
+    "site_visit_requested",
+    "general_enquiry",
+    "not_interested",
+    "other",
+  ] as const;
+  type Intent = (typeof validIntents)[number];
+
+  const intent = validIntents.includes(parsed["intent"] as Intent)
+    ? (parsed["intent"] as Intent)
+    : "other";
+
+  return {
+    intent,
+    summary: typeof parsed["summary"] === "string" ? parsed["summary"] : "",
+  };
+}
+
 export async function generateCustomerReply(
   customerMessage: string,
   businessKnowledge: Record<string, unknown>,

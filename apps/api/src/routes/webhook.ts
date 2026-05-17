@@ -1,13 +1,18 @@
 import { Router, type Request, type Response } from "express";
 import { createBspAdapter } from "@quikwap/bsp-adapter";
-import { generateCustomerReply } from "../lib/gemini.js";
+import {
+  generateCustomerReply,
+  detectIntentAndSummary,
+} from "../lib/gemini.js";
 import { findMatchingRule } from "../lib/keyword-matcher.js";
 import { findBusinessByPhoneNumber } from "../db/queries/businesses.js";
 import { getBusinessKnowledge } from "../db/queries/business-knowledge.js";
 import {
   findOrCreateContact,
   updateContactLastMessage,
+  addTagToContact,
 } from "../db/queries/contacts.js";
+import { findOrCreateLead, updateLeadStatus } from "../db/queries/leads.js";
 import { saveMessage, getRecentMessages } from "../db/queries/messages.js";
 import { getActiveKeywordRules } from "../db/queries/keyword-rules.js";
 import { logger } from "../lib/logger.js";
@@ -134,7 +139,55 @@ webhookRouter.post("/webhook/whatsapp", async (req: Request, res: Response) => {
       );
     }
 
-    // Step 11 — Return 200 to Twilio
+    // Step 11 — Detect intent and update lead tracking (soft failure — reply already sent)
+    try {
+      const conversationHistory = recentMessages.map((m) => ({
+        role:
+          m.direction === "incoming"
+            ? ("user" as const)
+            : ("assistant" as const),
+        content: m.body,
+      }));
+
+      const { intent, summary } = await detectIntentAndSummary(
+        customerMessage,
+        conversationHistory,
+        businessKnowledgeData,
+      );
+
+      const lead = await findOrCreateLead(businessId, contact.id);
+
+      if (intent === "site_visit_requested") {
+        await addTagToContact(businessId, contact.id, "site_visit_requested");
+        await updateLeadStatus(businessId, contact.id, "interested", summary);
+        logger.info(
+          { businessId, contactId: contact.id, intent },
+          "Lead marked interested",
+        );
+      } else if (intent === "not_interested") {
+        await updateLeadStatus(businessId, contact.id, "lost", summary);
+        logger.info(
+          { businessId, contactId: contact.id, intent },
+          "Lead marked lost",
+        );
+      } else if (intent === "general_enquiry") {
+        // Only move forward — don't downgrade an already-interested lead back to contacted
+        if (lead.status === "new") {
+          await updateLeadStatus(businessId, contact.id, "contacted", summary);
+          logger.info(
+            { businessId, contactId: contact.id, intent },
+            "Lead marked contacted",
+          );
+        }
+      }
+    } catch (intentError) {
+      logger.warn(
+        { businessId, error: intentError },
+        "Intent detection failed, skipping lead update",
+      );
+    }
+
+    // Step 12 — Return 200 to Twilio
     res.status(200).send("OK");
   } catch (err) {
     logger.error({ err, businessPhone }, "Webhook handler failed");
