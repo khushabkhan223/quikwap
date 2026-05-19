@@ -64,6 +64,16 @@ webhookRouter.post("/webhook/whatsapp", async (req: Request, res: Response) => {
     let replyText: string;
     let replySource: "gemini" | "keyword" | "fallback";
 
+    logger.info(
+      {
+        businessId,
+        customerMessage,
+        businessName: business.businessName,
+        businessKnowledge: businessKnowledgeData,
+      },
+      "Calling generateCustomerReply",
+    );
+
     try {
       replyText = await generateCustomerReply(
         customerMessage,
@@ -82,7 +92,19 @@ webhookRouter.post("/webhook/whatsapp", async (req: Request, res: Response) => {
       logger.info({ businessId, replySource }, "Reply generated");
     } catch (geminiError) {
       logger.warn(
-        { businessId, error: geminiError },
+        {
+          businessId,
+          errorMessage:
+            geminiError instanceof Error
+              ? geminiError.message
+              : String(geminiError),
+          errorStack:
+            geminiError instanceof Error ? geminiError.stack : undefined,
+          errorFull: JSON.stringify(
+            geminiError,
+            Object.getOwnPropertyNames(geminiError),
+          ),
+        },
         "Gemini failed, falling back to keyword rules",
       );
 
@@ -182,7 +204,13 @@ webhookRouter.post("/webhook/whatsapp", async (req: Request, res: Response) => {
       }
     } catch (intentError) {
       logger.warn(
-        { businessId, error: intentError },
+        {
+          businessId,
+          errorMessage:
+            intentError instanceof Error
+              ? intentError.message
+              : String(intentError),
+        },
         "Intent detection failed, skipping lead update",
       );
     }

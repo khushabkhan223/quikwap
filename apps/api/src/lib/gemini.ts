@@ -7,7 +7,37 @@ if (!apiKey) {
 }
 
 const genAI = new GoogleGenerativeAI(apiKey);
-const MODEL_ID = "gemini-2.5-flash-lite";
+const MODEL_ID = "gemini-2.5-flash";
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  delayMs: number = 2000,
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      const isRetryable =
+        (error instanceof Error && error.message.includes("503")) ||
+        (typeof error === "object" &&
+          error !== null &&
+          "status" in error &&
+          (error as Record<string, unknown>).status === 503);
+
+      if (isRetryable && attempt < maxRetries) {
+        const waitMs = delayMs * attempt;
+        logger.warn({ attempt, maxRetries, waitMs }, "Gemini 503, retrying...");
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError;
+}
 
 export async function parseBusinessInfo(
   rawText: string,
@@ -51,7 +81,7 @@ For other industries, extract whatever key business information is present as a 
     systemInstruction: systemPrompt,
   });
 
-  const result = await model.generateContent(rawText);
+  const result = await withRetry(() => model.generateContent(rawText));
   const text = result.response.text();
 
   try {
@@ -95,7 +125,7 @@ Return the COMPLETE updated data, not just the changes.`;
     systemInstruction: systemPrompt,
   });
 
-  const result = await model.generateContent(newMessage);
+  const result = await withRetry(() => model.generateContent(newMessage));
   const text = result.response.text();
 
   try {
@@ -142,7 +172,13 @@ CRITICAL: Return ONLY raw JSON. No markdown. No backticks. First character must 
     systemInstruction: systemPrompt,
   });
 
-  const history = conversationHistory.map((msg) => ({
+  const firstUserIndex = conversationHistory.findIndex(
+    (m) => m.role === "user",
+  );
+  const sanitizedHistory =
+    firstUserIndex === -1 ? [] : conversationHistory.slice(firstUserIndex);
+
+  const history = sanitizedHistory.map((msg) => ({
     role: msg.role === "assistant" ? ("model" as const) : ("user" as const),
     parts: [{ text: msg.content }],
   }));
@@ -150,7 +186,7 @@ CRITICAL: Return ONLY raw JSON. No markdown. No backticks. First character must 
   const contextMessage = `Business knowledge: ${JSON.stringify(businessKnowledge)}\n\nLatest customer message: ${customerMessage}`;
 
   const chat = model.startChat({ history });
-  const result = await chat.sendMessage(contextMessage);
+  const result = await withRetry(() => chat.sendMessage(contextMessage));
   const text = result.response.text();
 
   const parsed = JSON.parse(text) as Record<string, unknown>;
@@ -185,31 +221,36 @@ export async function generateCustomerReply(
 You have access to the following business information:
 ${JSON.stringify(businessKnowledge)}
 
-Your job is to answer customer questions accurately based on this information.
+WHAT YOU MUST DO:
+1. Answer property/service questions directly using the business information above.
+   Example: If asked 'Any property in Whitefield?' and the data has a Whitefield property, reply with the details immediately.
+2. For site visit requests: say 'Site visits are available on weekends. Please share your preferred date and time and our agent will confirm within 2 hours.'
+3. Reply in the same language the customer uses — Hindi, Hinglish, or English.
+4. Keep replies short — 2 to 3 sentences maximum.
 
-STRICT RULES:
-1. Never promise to 'check' or 'look up' anything — you have all the information you need in the business data above.
-2. Never say 'I'll get back to you' or 'I'll check and confirm' — you cannot do that.
-3. For site visit requests: say 'Please share your preferred date and time. Our agent will confirm your slot within 2 hours.'
-4. For anything not in the business data: say 'Our agent will get in touch with you shortly for more details.'
-5. Keep replies short — 2 to 3 sentences maximum.
-6. Reply in the same language the customer uses. If they write Hindi, reply in Hindi. If Hinglish, reply in Hinglish.
-7. Never make up prices, locations, or facts not in the business information.
-8. Never respond to requests unrelated to the business (coding questions, general knowledge, etc.) — just say 'Please contact us for business enquiries.'
-
-You are a professional assistant. Be warm, helpful, and concise.`;
+WHAT YOU MUST NOT DO:
+1. Never make up prices, locations, or facts not in the business information.
+2. If asked about a location not in the data, say we don't have properties there currently and mention what locations we do have.
+3. Never respond to requests completely unrelated to the business (coding questions, general knowledge) — say 'Please contact us for business enquiries only.'
+4. Never promise to 'check' availability or 'get back shortly' for questions you can answer right now from the business data.`;
 
   const model = genAI.getGenerativeModel({
     model: MODEL_ID,
     systemInstruction: systemPrompt,
   });
 
-  const history = conversationHistory.map((msg) => ({
+  const firstUserIndex = conversationHistory.findIndex(
+    (m) => m.role === "user",
+  );
+  const sanitizedHistory =
+    firstUserIndex === -1 ? [] : conversationHistory.slice(firstUserIndex);
+
+  const history = sanitizedHistory.map((msg) => ({
     role: msg.role === "assistant" ? ("model" as const) : ("user" as const),
     parts: [{ text: msg.content }],
   }));
 
   const chat = model.startChat({ history });
-  const result = await chat.sendMessage(customerMessage);
+  const result = await withRetry(() => chat.sendMessage(customerMessage));
   return result.response.text();
 }
