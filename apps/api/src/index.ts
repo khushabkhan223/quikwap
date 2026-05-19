@@ -4,6 +4,7 @@ import { logger } from "./lib/logger";
 import { supabaseClient } from "./db/client.js";
 import { onboardingRouter } from "./routes/onboarding.js";
 import { webhookRouter } from "./routes/webhook.js";
+import { leadsRouter } from "./routes/leads.js";
 
 const app: Express = express();
 const PORT = 3001;
@@ -12,6 +13,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use("/api", onboardingRouter);
 app.use("/api", webhookRouter);
+app.use("/api", leadsRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });

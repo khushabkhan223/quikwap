@@ -9,6 +9,8 @@ export interface Contact {
   tags: string[];
   createdAt: string;
   lastMessageAt: string | null;
+  botPaused: boolean;
+  agentTookOverAt: string | null;
 }
 
 function toContact(row: Record<string, unknown>): Contact {
@@ -21,6 +23,8 @@ function toContact(row: Record<string, unknown>): Contact {
     tags: row["tags"] as string[],
     createdAt: row["created_at"] as string,
     lastMessageAt: row["last_message_at"] as string | null,
+    botPaused: row["bot_paused"] as boolean,
+    agentTookOverAt: row["agent_took_over_at"] as string | null,
   };
 }
 
@@ -85,6 +89,23 @@ export async function updateContactLastMessage(
     .from("contacts")
     .update({ last_message_at: new Date().toISOString() })
     .eq("id", contactId);
+
+  if (error) throw error;
+}
+
+export async function updateContactBotPaused(
+  businessId: string,
+  contactId: string,
+  paused: boolean,
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("contacts")
+    .update({
+      bot_paused: paused,
+      agent_took_over_at: paused ? new Date().toISOString() : null,
+    })
+    .eq("id", contactId)
+    .eq("business_id", businessId);
 
   if (error) throw error;
 }

@@ -40,6 +40,21 @@ export async function saveMessage(
   if (error) throw error;
 }
 
+export async function getContactMessages(
+  businessId: string,
+  contactId: string,
+): Promise<Message[]> {
+  const { data, error } = await supabaseAdmin
+    .from("messages")
+    .select("*")
+    .eq("business_id", businessId)
+    .eq("contact_id", contactId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return (data as Record<string, unknown>[]).map(toMessage);
+}
+
 export async function getRecentMessages(
   businessId: string,
   contactId: string,

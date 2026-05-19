@@ -44,6 +44,24 @@ webhookRouter.post("/webhook/whatsapp", async (req: Request, res: Response) => {
     // Step 3 — Find or create the contact
     const contact = await findOrCreateContact(businessId, customerPhone);
 
+    // Step 3a — If agent has taken over, save the message but skip the bot reply
+    if (contact.botPaused) {
+      await saveMessage(
+        businessId,
+        contact.id,
+        "incoming",
+        customerMessage,
+        messageSid,
+      );
+      await updateContactLastMessage(contact.id);
+      logger.info(
+        { businessId, contactId: contact.id },
+        "Bot paused, skipping reply",
+      );
+      res.status(200).send("<Response></Response>");
+      return;
+    }
+
     // Step 4 — Save the incoming message
     await saveMessage(
       businessId,
